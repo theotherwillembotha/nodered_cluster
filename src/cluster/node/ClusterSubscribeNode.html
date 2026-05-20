@@ -1,0 +1,79 @@
+
+<script type="text/javascript" template-section="onCompose">
+    node
+        .addDefault("name",           { value: "Cluster Subscribe", required: true })
+        .addDefault("clusterConfig",  { type: "ClusterConfigNode", required: true })
+        .addDefault("subjectPattern", { value: "", required: true })
+        .setPaletteLabel("Cluster Subscribe")
+        .setIcon("cluster.png")
+        .setLabel(function() { return this.name; })
+        .setColor("#4A90D9")
+        .addOutputs("message")
+</script>
+
+<div template-section="onIncludeOnce">
+    <style>
+    </style>
+</div>
+
+<script type="text/javascript" template-section="onIncludeEditPrepare">
+{
+    let node = this;
+}
+</script>
+
+<script type="text/javascript" template-section="onIncludeEditSave">
+{
+    let node = this;
+}
+</script>
+
+<script type="text/html" template-section="onIncludeEditForm">
+    <div class="form-row">
+        <label for="node-input-name" class="towb_editorlabel"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" />
+    </div>
+
+    <div class="form-row nomargin">
+        <label for="node-input-clusterConfig" class="towb_editorlabel"><i class="fa fa-sitemap"></i> Cluster</label>
+        <input type="text" id="node-input-clusterConfig" placeholder="config" />
+    </div>
+
+    <div class="form-row editorsectionheading">
+        <i class="w-16 fa fa-inbox"></i> <span>Subscribe</span>
+    </div>
+
+    <div class="editorgroupborder">
+        <div class="form-row nomargin">
+            <label for="node-input-subjectPattern" class="towb_editorlabel"><i class="fa fa-filter"></i> Subject Pattern</label>
+            <input type="text" id="node-input-subjectPattern" placeholder="e.g. *.test  or  field-a.sensors.temperature" />
+        </div>
+    </div>
+</script>
+
+<script type="text/markdown" template-section="onIncludeDocumentation">
+> **Early development** — this package is still in development. APIs and configuration may change.
+
+Subscribes to a cluster subject and emits a Node-RED message each time a matching message arrives from any cluster instance.
+
+### Properties
+
+: *cluster*         (config) : The Cluster Config node that defines which cluster to subscribe to.
+: *subject pattern* (string) : Subject pattern to subscribe to. Supports NATS wildcards: `*` matches a single token, `>` matches one or more tokens.
+
+### Subject pattern examples
+
+| Pattern | Matches |
+|---------|---------|
+| `*.commands.opengate` | Open gate commands from any instance |
+| `field-a.>` | All messages from instance `field-a` |
+| `>` | Every message in the cluster |
+| `field-a.sensors.temperature` | Exact subject from `field-a` only |
+
+The pattern is automatically scoped to the cluster's ZK Root Path, so subjects from other clusters on the same ZooKeeper instance are never mixed in.
+
+### Outputs
+
+: *msg.payload* : The message payload published by the remote Cluster Publish node.
+: *msg.topic*   : The full NATS subject the message arrived on.
+</script>

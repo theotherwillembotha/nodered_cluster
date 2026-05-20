@@ -1,0 +1,119 @@
+
+<script type="text/javascript" template-section="onCompose">
+    node
+        .addDefault("name",          { value: "Cluster Publish", required: true })
+        .addDefault("clusterConfig", { type: "ClusterConfigNode", required: true })
+        .addDefault("subject",       { value: "", required: true })
+        .addDefault("mode",          { value: "Durable", required: true })
+        .addDefault("ttl",           { value: "30", required: false })
+        .setPaletteLabel("Cluster Publish")
+        .setIcon("cluster.png")
+        .setLabel(function() { return this.name; })
+        .setColor("#4A90D9")
+        .setInput("message")
+</script>
+
+<div template-section="onIncludeOnce">
+    <style>
+    </style>
+</div>
+
+<script type="text/javascript" template-section="onIncludeEditPrepare">
+{
+    let node = this;
+
+    let modeSelect = $("#node-input-mode");
+
+    let updateTtlVisibility = function() {
+        let isEphemeral = modeSelect.typedInput("value") === "Ephemeral";
+        $("#cluster-publish-ttl-row").toggle(isEphemeral);
+    };
+
+    modeSelect.typedInput({
+        type: "mode",
+        types: [{
+            value: "mode",
+            options: [
+                { value: "Durable",   label: "Durable (delivered eventually)" },
+                { value: "Ephemeral", label: "Ephemeral (discard if stale)"   }
+            ]
+        }]
+    });
+
+    modeSelect.on("change", updateTtlVisibility);
+    updateTtlVisibility();
+
+    // show observer warning if the linked config is in Observer role.
+    let clusterConfigInput = $("#node-input-clusterConfig");
+    clusterConfigInput.on("change", function() {
+        let configId = clusterConfigInput.val();
+        let configNode;
+        RED.nodes.eachConfig(function(cfg) { if (cfg.id === configId) configNode = cfg; });
+        let isObserver = configNode && configNode.role === "Observer";
+        $("#cluster-publish-observer-warning").toggle(!!isObserver);
+    });
+}
+</script>
+
+<script type="text/javascript" template-section="onIncludeEditSave">
+{
+    let node = this;
+}
+</script>
+
+<script type="text/html" template-section="onIncludeEditForm">
+    <div class="form-row">
+        <label for="node-input-name" class="towb_editorlabel"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" />
+    </div>
+
+    <div class="form-row nomargin">
+        <label for="node-input-clusterConfig" class="towb_editorlabel"><i class="fa fa-sitemap"></i> Cluster</label>
+        <input type="text" id="node-input-clusterConfig" placeholder="config" />
+    </div>
+
+    <div id="cluster-publish-observer-warning" style="display:none;" class="form-row">
+        <div style="padding: 6px 8px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;">
+            <i class="fa fa-exclamation-triangle"></i>
+            This node is <strong>disabled</strong> — the linked cluster config is set to <strong>Observer</strong> role. Publishing will be silently ignored at runtime.
+        </div>
+    </div>
+
+    <div class="form-row editorsectionheading">
+        <i class="w-16 fa fa-paper-plane"></i> <span>Publish</span>
+    </div>
+
+    <div class="editorgroupborder">
+        <div class="form-row nomargin">
+            <label for="node-input-subject" class="towb_editorlabel"><i class="fa fa-tag"></i> Subject</label>
+            <input type="text" id="node-input-subject" placeholder="e.g. commands.opengate" />
+        </div>
+        <div class="form-row nomargin">
+            <label for="node-input-mode" class="towb_editorlabel"><i class="fa fa-send"></i> Mode</label>
+            <input type="text" id="node-input-mode" />
+        </div>
+        <div class="form-row nomargin" id="cluster-publish-ttl-row">
+            <label for="node-input-ttl" class="towb_editorlabel"><i class="fa fa-clock-o"></i> TTL (seconds)</label>
+            <input type="number" id="node-input-ttl" min="1" style="width: 80px;" />
+        </div>
+    </div>
+</script>
+
+<script type="text/markdown" template-section="onIncludeDocumentation">
+> **Early development** — this package is still in development. APIs and configuration may change.
+
+Publishes a message to the cluster when triggered. Other instances with a matching Cluster Subscribe node will receive it.
+
+If the linked cluster config is set to **Observer** role, this node is disabled and will silently discard all messages.
+
+### Properties
+
+: *cluster* (config) : The Cluster Config node that defines which cluster to publish to.
+: *subject* (string) : Subject identifier for this message stream (e.g. `commands.opengate`, `sensors.temperature`). Supports dot-notation for hierarchy.
+: *mode*    (select) : **Durable** — message is persisted and delivered even if the subscriber is temporarily offline. **Ephemeral** — message is discarded if not delivered within the TTL window. Use for time-sensitive commands.
+: *TTL*     (number) : Only shown for Ephemeral mode. Seconds before an undelivered message is discarded. Default: 30.
+
+### Subject routing
+
+The full NATS subject is automatically composed as `<zkRootPath>.<instanceId>.<subject>`, so subjects you define here are automatically namespaced to this instance. Subscribers can use wildcards to match across instances.
+</script>

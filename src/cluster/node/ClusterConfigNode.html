@@ -1,0 +1,151 @@
+
+<script type="text/javascript" template-section="onCompose">
+    node
+        .addDefault("name",        { value: "My Cluster", required: true })
+        .addDefault("instanceId",  { value: "", required: true })
+        .addDefault("zkAddress",   { value: "localhost:2181", required: true })
+        .addDefault("zkRootPath",  { value: "/nodered-cluster", required: true })
+        .addDefault("natsAddress", { value: "localhost:4222", required: true })
+        .addDefault("role",        { value: "Member", required: true })
+        .setPaletteLabel("Cluster Config")
+        .setLabel(function() { return this.name; })
+        .setColor("#4A90D9")
+</script>
+
+<div template-section="onIncludeOnce">
+    <style>
+    </style>
+</div>
+
+<script type="text/javascript" template-section="onIncludeEditPrepare">
+{
+    let node = this;
+
+    $("#node-config-input-role").typedInput({
+        type: "role",
+        types: [{
+            value: "role",
+            options: [
+                { value: "Member",   label: "Member"   },
+                { value: "Observer", label: "Observer" }
+            ]
+        }]
+    });
+
+    $("#cluster-test-connection-btn").on("click", function() {
+        let $btn     = $(this);
+        let natsText = $("#cluster-test-nats-text");
+        let zkText   = $("#cluster-test-zk-text");
+
+        $btn.prop("disabled", true);
+        natsText.text("Testing...").css("color", "gray");
+        zkText.text("Testing...").css("color", "gray");
+
+        $.ajax({
+            url: "cluster/testconnection",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({
+                natsAddress: $("#node-config-input-natsAddress").val(),
+                zkAddress:   $("#node-config-input-zkAddress").val()
+            }),
+            success: function(r) {
+                natsText.text((r.nats.ok ? "\u2714 " : "\u2718 ") + (r.nats.message || r.nats.error)).css("color", r.nats.ok ? "green" : "red");
+                zkText.text(  (r.zk.ok   ? "\u2714 " : "\u2718 ") + (r.zk.message   || r.zk.error  )).css("color", r.zk.ok   ? "green" : "red");
+            },
+            error: function(xhr) {
+                let msg = "Request failed";
+                try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e) {}
+                natsText.text("\u2718 " + msg).css("color", "red");
+                zkText.text("\u2718 " + msg).css("color", "red");
+            },
+            complete: function() { $btn.prop("disabled", false); }
+        });
+    });
+}
+</script>
+
+<script type="text/javascript" template-section="onIncludeEditSave">
+{
+    let node = this;
+}
+</script>
+
+<script type="text/html" template-section="onIncludeEditForm">
+    <div class="form-row">
+        <label for="node-config-input-name" class="towb_editorlabel"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" />
+    </div>
+
+    <div class="form-row editorsectionheading">
+        <i class="w-16 fa fa-sitemap"></i> <span>Identity</span>
+    </div>
+
+    <div class="editorgroupborder">
+        <div class="form-row nomargin">
+            <label for="node-config-input-instanceId" class="towb_editorlabel"><i class="fa fa-id-badge"></i> Instance ID</label>
+            <input type="text" id="node-config-input-instanceId" placeholder="e.g. field-a, control-center" />
+        </div>
+        <div class="form-row nomargin">
+            <label for="node-config-input-role" class="towb_editorlabel"><i class="fa fa-user-circle"></i> Role</label>
+            <input type="text" id="node-config-input-role" />
+        </div>
+    </div>
+
+    <div class="form-row editorsectionheading">
+        <i class="w-16 fa fa-plug"></i> <span>Connections</span>
+    </div>
+
+    <div class="editorgroupborder">
+        <div class="form-row nomargin">
+            <label for="node-config-input-natsAddress" class="towb_editorlabel"><i class="fa fa-exchange"></i> NATS Address</label>
+            <input type="text" id="node-config-input-natsAddress" placeholder="localhost:4222" />
+        </div>
+        <div class="form-row nomargin">
+            <label for="node-config-input-zkAddress" class="towb_editorlabel"><i class="fa fa-database"></i> ZooKeeper</label>
+            <input type="text" id="node-config-input-zkAddress" placeholder="localhost:2181" />
+        </div>
+        <div class="form-row nomargin">
+            <label for="node-config-input-zkRootPath" class="towb_editorlabel"><i class="fa fa-folder"></i> ZK Root Path</label>
+            <input type="text" id="node-config-input-zkRootPath" placeholder="/nodered-cluster" />
+        </div>
+    </div>
+
+    <div class="form-row editorsectionheading">
+        <i class="w-16 fa fa-check-circle"></i> <span>Test</span>
+    </div>
+
+    <div class="editorgroupborder">
+        <div class="form-row nomargin">
+            <label class="towb_editorlabel"></label>
+            <button type="button" id="cluster-test-connection-btn" class="red-ui-button">
+                <i class="fa fa-plug"></i> Test Connections
+            </button>
+        </div>
+        <div class="form-row nomargin">
+            <label class="towb_editorlabel"><i class="fa fa-exchange"></i> NATS</label>
+            <span id="cluster-test-nats-text" style="font-size: 12px;"></span>
+        </div>
+        <div class="form-row nomargin">
+            <label class="towb_editorlabel"><i class="fa fa-database"></i> ZooKeeper</label>
+            <span id="cluster-test-zk-text" style="font-size: 12px;"></span>
+        </div>
+    </div>
+</script>
+
+<script type="text/markdown" template-section="onIncludeDocumentation">
+> **Early development** — this package is still in development. APIs and configuration may change.
+
+Defines a cluster connection. Each Node-RED instance that participates in a cluster needs one config node per cluster it belongs to.
+
+A single Node-RED instance can be a member of multiple clusters simultaneously by creating multiple config nodes with different ZK Root Paths.
+
+### Properties
+
+: *name*        (string) : Display label for this config node.
+: *instance id* (string) : Unique name for this Node-RED instance within the cluster (e.g. `field-a`, `control-center`).
+: *role*        (select) : **Member** — can publish and subscribe. **Observer** — subscribe only; any Cluster Publish nodes referencing this config will be disabled.
+: *NATS address* (string) : Address of the local NATS server or leaf node (`host:port`).
+: *ZooKeeper*   (string) : Address of the ZooKeeper instance used for cluster coordination (`host:port`).
+: *ZK Root Path* (string) : ZooKeeper path that identifies this cluster. Must be the same across all instances in the cluster. Using different root paths on a shared ZooKeeper instance allows multiple independent clusters.
+</script>
