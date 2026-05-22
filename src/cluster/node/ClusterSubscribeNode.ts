@@ -3,7 +3,6 @@ import { BaseNode, BaseNodeConfig, NodeDescription, NodeManager, SourceUtility }
 import { Subscription } from "@nats-io/nats-core";
 import { ClusterConfigNode } from "./ClusterConfigNode";
 import { ClusterClient } from "../service/ClusterClient";
-import * as zookeeper from "node-zookeeper-client";
 
 export interface ClusterSubscribeNodeConfig extends BaseNodeConfig {
     clusterConfig:  string;
@@ -27,7 +26,7 @@ export class ClusterSubscribeNode extends BaseNode<ClusterSubscribeNodeConfig> {
 
     private _configNode:        ClusterConfigNode;
     private _subjectPattern:    string;
-    private _subscription:      Subscription | null = null;
+    private _subscriptions:     Subscription[] = [];
     private _unsubscribeStatus: (() => void) | null = null;
 
     constructor(node: Node, config: ClusterSubscribeNodeConfig) {
@@ -62,10 +61,7 @@ export class ClusterSubscribeNode extends BaseNode<ClusterSubscribeNodeConfig> {
             this._unsubscribeStatus?.();
             this._unsubscribeStatus = null;
 
-            if (removed) {
-                const client = this._configNode.getClient();
-                if (client) this._removeSubscriptionRecord(client);
-            }
+            if (removed) { /* nothing to clean up */ }
 
             this._unsubscribe();
             done();
@@ -75,71 +71,41 @@ export class ClusterSubscribeNode extends BaseNode<ClusterSubscribeNodeConfig> {
     // ── Subscription management ──────────────────────────────────────────────
 
     private _subscribe(client: ClusterClient): void {
-        if (this._subscription) return; // already subscribed
+        if (this._subscriptions.length > 0) return; // already subscribed
 
-        const nc      = client.natsClient();
+        const nc = client.natsClient();
         if (!nc) return;
 
-        const pattern = client.buildSubscribePattern(this._subjectPattern);
-        this._subscription = nc.subscribe(pattern);
+        const patterns = this._subjectPattern
+            .split(",")
+            .map(p => p.trim())
+            .filter(p => p.length > 0);
 
-        // Drain the async iterator in the background
-        const sub  = this._subscription;
         const node = this.node();
-        (async () => {
-            for await (const msg of sub) {
-                try {
-                    const payload = JSON.parse(msg.string());
-                    node.send({ payload, topic: msg.subject });
-                } catch (_) {
-                    // Message data is not JSON — forward raw string
-                    node.send({ payload: msg.string(), topic: msg.subject });
+        for (const pattern of patterns) {
+            const sub = nc.subscribe(client.buildSubscribePattern(pattern));
+            this._subscriptions.push(sub);
+            (async () => {
+                for await (const msg of sub) {
+                    try {
+                        node.send({ payload: JSON.parse(msg.string()), topic: msg.subject });
+                    } catch (_) {
+                        node.send({ payload: msg.string(), topic: msg.subject });
+                    }
                 }
-            }
-        })();
+            })();
+        }
 
-        this.node().status(subscribedStatus);
-        this._writeSubscriptionRecord(client);
+        const count = this._subscriptions.length;
+        this.node().status(count > 1
+            ? { fill: "green", shape: "dot", text: `subscribed (${count})` }
+            : subscribedStatus
+        );
     }
 
     private _unsubscribe(): void {
-        if (this._subscription) {
-            this._subscription.unsubscribe();
-            this._subscription = null;
-        }
+        this._subscriptions.forEach(sub => sub.unsubscribe());
+        this._subscriptions = [];
     }
 
-    // ── ZK subscription record ───────────────────────────────────────────────
-
-    private _subscriptionPath(client: ClusterClient): string {
-        const { zkRootPath, instanceId } = client.params();
-        return `${zkRootPath}/subscriptions/${instanceId}/${this._subjectPattern}`;
-    }
-
-    private _writeSubscriptionRecord(client: ClusterClient): void {
-        const zk = client.zkClient();
-        if (!zk) return;
-
-        const path = this._subscriptionPath(client);
-        const data = Buffer.from(JSON.stringify({
-            instanceId: client.params().instanceId,
-            role:       client.params().role
-        }));
-        const parentPath = path.substring(0, path.lastIndexOf("/"));
-
-        zk.mkdirp(parentPath, (mkErr) => {
-            if (mkErr) return;
-            zk.create(path, data, zookeeper.CreateMode.PERSISTENT, (createErr) => {
-                if (createErr && (createErr as zookeeper.Exception).getCode?.() === zookeeper.Exception.NODE_EXISTS) {
-                    zk.setData(path, data, -1, () => { /* best-effort update */ });
-                }
-            });
-        });
-    }
-
-    private _removeSubscriptionRecord(client: ClusterClient): void {
-        const zk = client.zkClient();
-        if (!zk) return;
-        zk.remove(this._subscriptionPath(client), -1, () => { /* best-effort */ });
-    }
 }

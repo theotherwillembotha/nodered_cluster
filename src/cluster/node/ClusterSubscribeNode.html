@@ -13,18 +13,194 @@
 
 <div template-section="onIncludeOnce">
     <style>
+    .cluster-sub-ac-dropdown {
+        position: fixed;
+        background: var(--red-ui-primary-background, #fff);
+        border: 1px solid var(--red-ui-form-input-border-color, #ccc);
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        max-height: 220px;
+        overflow-y: auto;
+        z-index: 2000;
+        display: none;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .cluster-sub-ac-item {
+        padding: 5px 10px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        border-bottom: 1px solid var(--red-ui-secondary-border-color, #eee);
+    }
+    .cluster-sub-ac-item:last-child { border-bottom: none; }
+    .cluster-sub-ac-item:hover,
+    .cluster-sub-ac-item.cluster-sub-ac-active {
+        background: var(--red-ui-secondary-background-selected, #e5f3ff);
+    }
+    .cluster-sub-ac-value { font-family: monospace; font-weight: 500; }
+    .cluster-sub-ac-desc  { color: var(--red-ui-tertiary-text-color, #999); font-size: 11px; white-space: nowrap; margin-left: 8px; }
     </style>
 </div>
 
 <script type="text/javascript" template-section="onIncludeEditPrepare">
 {
     let node = this;
+    let _suggestions    = [];
+    let _currentMatches = [];
+    let _activeIdx      = -1;
+
+    // Clean up any leftover dropdown from a previous edit
+    $('.cluster-sub-ac-dropdown').remove();
+    let $input    = $('#node-input-subjectPattern');
+    let $dropdown = $('<div class="cluster-sub-ac-dropdown">').appendTo('body');
+
+    // ── Build suggestion list from discovery data ─────────────────────────────
+
+    function buildSuggestions(data) {
+        let result    = [];
+        let endpoints = data.endpoints || {};
+        let allSubjects = new Set();
+        Object.values(endpoints).forEach(function(subjects) {
+            subjects.forEach(function(s) { allSubjects.add(s); });
+        });
+
+        result.push({ value: '>', desc: 'all messages' });
+
+        [...allSubjects].sort().forEach(function(subject) {
+            result.push({ value: '*.' + subject, desc: 'any instance' });
+        });
+
+        Object.keys(endpoints).sort().forEach(function(instanceId) {
+            result.push({ value: instanceId + '.>', desc: 'all from ' + instanceId });
+            (endpoints[instanceId] || []).sort().forEach(function(subject) {
+                result.push({ value: instanceId + '.' + subject, desc: instanceId });
+            });
+        });
+
+        return result;
+    }
+
+    // ── Token helpers ─────────────────────────────────────────────────────────
+
+    function getCurrentToken() {
+        let parts = ($input.val() || '').split(',');
+        return parts[parts.length - 1].trimStart();
+    }
+
+    function replaceCurrentToken(value) {
+        let val      = $input.val() || '';
+        let commaIdx = val.lastIndexOf(',');
+        $input.val(commaIdx === -1 ? value : val.substring(0, commaIdx) + ', ' + value);
+        $input.focus();
+    }
+
+    function filterSuggestions(token) {
+        let lower = token.toLowerCase();
+        let pool  = token.length === 0
+            ? _suggestions
+            : _suggestions.filter(function(s) { return s.value.toLowerCase().startsWith(lower); });
+        return pool.slice(0, 12);
+    }
+
+    // ── Dropdown rendering ────────────────────────────────────────────────────
+
+    function showDropdown(matches) {
+        _currentMatches = matches;
+        _activeIdx      = -1;
+        $dropdown.empty();
+
+        if (matches.length === 0) { $dropdown.hide(); return; }
+
+        matches.forEach(function(s) {
+            $('<div class="cluster-sub-ac-item">')
+                .append($('<span class="cluster-sub-ac-value">').text(s.value))
+                .append($('<span class="cluster-sub-ac-desc">').text(s.desc))
+                .on('mousedown', function(e) {
+                    e.preventDefault();
+                    replaceCurrentToken(s.value);
+                    $dropdown.hide();
+                    _activeIdx = -1;
+                })
+                .appendTo($dropdown);
+        });
+
+        let rect = $input[0].getBoundingClientRect();
+        $dropdown.css({ top: rect.bottom + 'px', left: rect.left + 'px', width: rect.width + 'px' }).show();
+    }
+
+    // ── Input event handlers ──────────────────────────────────────────────────
+
+    $input.on('input', function() {
+        let matches = filterSuggestions(getCurrentToken());
+        matches.length > 0 ? showDropdown(matches) : $dropdown.hide();
+    });
+
+    $input.on('focus', function() {
+        if (_suggestions.length > 0) showDropdown(filterSuggestions(getCurrentToken()));
+    });
+
+    $input.on('blur', function() {
+        setTimeout(function() { $dropdown.hide(); }, 150);
+    });
+
+    $input.on('keydown', function(e) {
+        if ($dropdown.is(':hidden')) {
+            if (e.key === 'ArrowDown' && _suggestions.length > 0) {
+                showDropdown(filterSuggestions(getCurrentToken()));
+            }
+            return;
+        }
+
+        let items = $dropdown.find('.cluster-sub-ac-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            _activeIdx = Math.min(_activeIdx + 1, _currentMatches.length - 1);
+            items.removeClass('cluster-sub-ac-active').eq(_activeIdx).addClass('cluster-sub-ac-active');
+            items[_activeIdx] && items[_activeIdx].scrollIntoView({ block: 'nearest' });
+
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            _activeIdx = Math.max(_activeIdx - 1, 0);
+            items.removeClass('cluster-sub-ac-active').eq(_activeIdx).addClass('cluster-sub-ac-active');
+            items[_activeIdx] && items[_activeIdx].scrollIntoView({ block: 'nearest' });
+
+        } else if ((e.key === 'Enter' || e.key === 'Tab') && _activeIdx >= 0) {
+            e.preventDefault();
+            replaceCurrentToken(_currentMatches[_activeIdx].value);
+            $dropdown.hide();
+            _activeIdx = -1;
+
+        } else if (e.key === 'Escape') {
+            $dropdown.hide();
+            _activeIdx = -1;
+        }
+    });
+
+    // ── Fetch discovery data ──────────────────────────────────────────────────
+
+    let configId = node.clusterConfig;
+    if (configId) {
+        $.ajax({
+            url: 'cluster/discovery/' + configId,
+            type: 'GET',
+            success: function(data) {
+                _suggestions = buildSuggestions(data);
+            },
+            error: function() {
+                console.warn('[ClusterSubscribe] Discovery unavailable  autocomplete disabled');
+            }
+        });
+    }
 }
 </script>
 
 <script type="text/javascript" template-section="onIncludeEditSave">
 {
     let node = this;
+    $('.cluster-sub-ac-dropdown').remove();
 }
 </script>
 
@@ -46,34 +222,41 @@
     <div class="editorgroupborder">
         <div class="form-row nomargin">
             <label for="node-input-subjectPattern" class="towb_editorlabel"><i class="fa fa-filter"></i> Subject Pattern</label>
-            <input type="text" id="node-input-subjectPattern" placeholder="e.g. *.test  or  field-a.sensors.temperature" />
+            <input type="text" id="node-input-subjectPattern" placeholder="e.g. *.commands.opengate, *.events.closegate" autocomplete="off" />
         </div>
     </div>
 </script>
 
 <script type="text/markdown" template-section="onIncludeDocumentation">
-> **Early development** — this package is still in development. APIs and configuration may change.
+> **Early development**  this package is still in development. APIs and configuration may change.
 
-Subscribes to a cluster subject and emits a Node-RED message each time a matching message arrives from any cluster instance.
+Subscribes to one or more cluster subjects and emits a Node-RED message each time a matching message arrives from any instance in the cluster.
 
 ### Properties
 
 : *cluster*         (config) : The Cluster Config node that defines which cluster to subscribe to.
-: *subject pattern* (string) : Subject pattern to subscribe to. Supports NATS wildcards: `*` matches a single token, `>` matches one or more tokens.
+: *subject pattern* (string) : One or more subject patterns, comma-separated. Each pattern creates an independent subscription. Supports NATS wildcards.
 
-### Subject pattern examples
+### Subject pattern syntax
+
+Patterns are scoped to the cluster's Root Path automatically  you only write the part after the root prefix.
 
 | Pattern | Matches |
 |---------|---------|
-| `*.commands.opengate` | Open gate commands from any instance |
-| `field-a.>` | All messages from instance `field-a` |
+| `*.commands.opengate` | Open-gate command from **any** instance |
+| `field-a.sensors.temperature` | Temperature from `field-a` only |
+| `field-a.>` | **All** messages from `field-a` |
 | `>` | Every message in the cluster |
-| `field-a.sensors.temperature` | Exact subject from `field-a` only |
+| `*.commands.opengate, *.commands.closegate` | Both gate commands from any instance |
 
-The pattern is automatically scoped to the cluster's ZK Root Path, so subjects from other clusters on the same ZooKeeper instance are never mixed in.
+`*` matches a single subject token. `>` matches one or more tokens and must be the last token in the pattern.
+
+### Autocomplete
+
+When the editor opens, the node fetches live discovery data from the cluster and populates an autocomplete dropdown as you type. Suggestions are grouped from broadest to most specific. Use arrow keys to navigate, Enter or Tab to select.
 
 ### Outputs
 
-: *msg.payload* : The message payload published by the remote Cluster Publish node.
-: *msg.topic*   : The full NATS subject the message arrived on.
+: *msg.payload* : The payload published by the remote Cluster Publish node.
+: *msg.topic*   : The full NATS subject the message arrived on  use this to identify which instance sent the message.
 </script>

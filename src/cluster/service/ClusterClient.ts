@@ -1,29 +1,30 @@
 import { connect } from "@nats-io/transport-node";
-import { NatsConnection } from "@nats-io/nats-core";
+import { NatsConnection, ConnectionOptions } from "@nats-io/nats-core";
 import { jetstream, jetstreamManager } from "@nats-io/jetstream";
-import * as zookeeper from "node-zookeeper-client";
+import { Kvm, KV } from "@nats-io/kv";
 import { ClusterRole } from "../node/ClusterConfigNode";
 
 export type ClusterClientParams = {
     instanceId:  string;
-    zkAddress:   string;
     zkRootPath:  string;
     natsAddress: string;
+    natsUser?:   string;
+    natsPass?:   string;
     role:        ClusterRole;
 };
 
-export type ClusterClientStatus = "idle" | "connecting" | "nats-connected" | "connected" | "zk-disconnected" | "error";
+export type ClusterClientStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 
 type StatusListener = (status: ClusterClientStatus, error?: Error) => void;
 
 export class ClusterClient {
 
-    private _params:       ClusterClientParams;
-    private _natsClient:   NatsConnection | null = null;
-    private _zkClient:     zookeeper.Client | null = null;
-    private _status:       ClusterClientStatus = "idle";
+    private _params:          ClusterClientParams;
+    private _natsClient:      NatsConnection | null = null;
+    private _kvBucket:        KV | null = null;
+    private _status:          ClusterClientStatus = "idle";
     private _statusListeners: StatusListener[] = [];
-    private _streamName:   string | null = null;
+    private _streamName:      string | null = null;
 
     constructor(params: ClusterClientParams) {
         this._params = params;
@@ -31,15 +32,15 @@ export class ClusterClient {
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
-    /**
-     * Called by ClusterService when the config node is redeployed with changed settings.
-     * Restarts the client only if the params actually changed.
-     */
     public updateParams(params: ClusterClientParams): void {
         if (JSON.stringify(params) === JSON.stringify(this._params)) return;
-        this._params = params;
         this._streamName = null;
-        this.stop().then(() => this.start()).catch(err => {
+        // stop() must run with the OLD params so it cleans up the correct KV keys,
+        // then swap params in before start() so the new identity is registered.
+        this.stop().then(() => {
+            this._params = params;
+            return this.start();
+        }).catch(err => {
             console.error("ClusterClient: restart after param change failed:", err);
         });
     }
@@ -47,21 +48,32 @@ export class ClusterClient {
     public async start(): Promise<void> {
         this._setStatus("connecting");
 
-        this._natsClient = await connect({ servers: this._params.natsAddress });
+        const connectOpts: ConnectionOptions = { servers: this._params.natsAddress };
+        if (this._params.natsUser) connectOpts.user = this._params.natsUser;
+        if (this._params.natsPass) connectOpts.pass = this._params.natsPass;
+        this._natsClient = await connect(connectOpts);
 
-        await this._connectZK();
+        await this._initKV();
 
         this._setStatus("connected");
     }
 
     public async stop(): Promise<void> {
+        if (this._kvBucket) {
+            try {
+                await this._kvBucket.delete(`instances.${this._params.instanceId}`);
+            } catch (_) {}
+            try {
+                const iter = await this._kvBucket.keys(`endpoints.${this._params.instanceId}.>`);
+                for await (const key of iter) {
+                    try { await this._kvBucket.delete(key); } catch (_) {}
+                }
+            } catch (_) { /* no endpoint keys to clean up */ }
+            this._kvBucket = null;
+        }
         if (this._natsClient) {
             try { await this._natsClient.drain(); } catch (_) { /* ignore drain errors */ }
             this._natsClient = null;
-        }
-        if (this._zkClient) {
-            this._zkClient.close();
-            this._zkClient = null;
         }
         this._streamName = null;
         this._setStatus("idle");
@@ -69,10 +81,10 @@ export class ClusterClient {
 
     // ── Accessors ────────────────────────────────────────────────────────────
 
-    public natsClient(): NatsConnection | null   { return this._natsClient; }
-    public zkClient():   zookeeper.Client | null { return this._zkClient;   }
-    public status():     ClusterClientStatus     { return this._status;     }
-    public params():     ClusterClientParams     { return this._params;     }
+    public natsClient(): NatsConnection | null { return this._natsClient; }
+    public kvBucket():   KV | null             { return this._kvBucket;   }
+    public status():     ClusterClientStatus   { return this._status;     }
+    public params():     ClusterClientParams   { return this._params;     }
 
     // ── Subject helpers ──────────────────────────────────────────────────────
 
@@ -91,25 +103,41 @@ export class ClusterClient {
         return this._params.zkRootPath.replace(/^\//, "").replace(/\//g, ".");
     }
 
+    /** KV bucket name e.g. `CLUSTER_NODERED_CLUSTER` */
+    public kvBucketName(): string {
+        return "CLUSTER_" + this.rootPrefix().toUpperCase().replace(/[.\-\/]/g, "_");
+    }
+
+    // ── KV endpoint/instance helpers ─────────────────────────────────────────
+
+    public async announceEndpoint(subject: string, mode: string, ttl: number): Promise<void> {
+        const kv = this._kvBucket;
+        if (!kv) return;
+        await kv.put(
+            `endpoints.${this._params.instanceId}.${subject}`,
+            JSON.stringify({ mode, ttl })
+        );
+    }
+
+    public async removeEndpoint(subject: string): Promise<void> {
+        const kv = this._kvBucket;
+        if (!kv) return;
+        await kv.delete(`endpoints.${this._params.instanceId}.${subject}`);
+    }
+
     // ── Stream management ────────────────────────────────────────────────────
 
-    /**
-     * Ensures the JetStream stream for this cluster exists.
-     * Safe to call multiple times — result is cached after first creation.
-     * Returns the stream name.
-     */
     public async ensureStream(): Promise<string> {
         if (this._streamName) return this._streamName;
 
-        const nc      = this._natsClient!;
-        const jsm     = await jetstreamManager(nc);
-        const prefix  = this.rootPrefix();
-        const name    = prefix.toUpperCase().replace(/[.\-\/]/g, "_");
+        const nc     = this._natsClient!;
+        const jsm    = await jetstreamManager(nc);
+        const prefix = this.rootPrefix();
+        const name   = prefix.toUpperCase().replace(/[.\-\/]/g, "_");
 
         try {
             await jsm.streams.info(name);
         } catch (_) {
-            // Stream does not exist — create it
             await jsm.streams.add({ name, subjects: [`${prefix}.>`] });
         }
 
@@ -124,7 +152,7 @@ export class ClusterClient {
         await js.publish(subject, data);
     }
 
-    /** Publish via core NATS (ephemeral — fire and forget). */
+    /** Publish via core NATS (ephemeral  fire and forget). */
     public corePublish(subject: string, data: string): void {
         this._natsClient!.publish(subject, data);
     }
@@ -145,53 +173,13 @@ export class ClusterClient {
         this._statusListeners.forEach(l => l(status, error));
     }
 
-    private _connectZK(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const client = zookeeper.createClient(this._params.zkAddress);
-            this._zkClient = client;
+    private async _initKV(): Promise<void> {
+        const kvm         = new Kvm(this._natsClient!);
+        this._kvBucket    = await kvm.create(this.kvBucketName(), { history: 1 });
 
-            client.once("connected", () => {
-                this._registerInstance()
-                    .then(resolve)
-                    .catch(reject);
-            });
-
-            client.on("disconnected", () => {
-                this._setStatus("zk-disconnected");
-            });
-
-            client.connect();
-        });
-    }
-
-    private _registerInstance(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const instancesPath = `${this._params.zkRootPath}/instances`;
-            const instancePath  = `${instancesPath}/${this._params.instanceId}`;
-            const data = Buffer.from(JSON.stringify({
-                natsAddress: this._params.natsAddress,
-                role:        this._params.role
-            }));
-
-            this._zkClient!.mkdirp(instancesPath, (mkErr) => {
-                if (mkErr) return reject(mkErr);
-
-                this._zkClient!.create(instancePath, data, zookeeper.CreateMode.EPHEMERAL, (createErr) => {
-                    if (createErr) {
-                        if ((createErr as zookeeper.Exception).getCode?.() === zookeeper.Exception.NODE_EXISTS) {
-                            // Stale node from a previous session — update data in-place
-                            this._zkClient!.setData(instancePath, data, -1, (setErr) => {
-                                if (setErr) return reject(setErr);
-                                resolve();
-                            });
-                        } else {
-                            reject(createErr);
-                        }
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        });
+        await this._kvBucket.put(
+            `instances.${this._params.instanceId}`,
+            JSON.stringify({ natsAddress: this._params.natsAddress, role: this._params.role })
+        );
     }
 }

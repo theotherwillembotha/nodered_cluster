@@ -4,7 +4,7 @@
     "target": "es2022",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "useDefineForClassFields": false,                  /* Must be false when using experimentalDecorators — es2022+ default is true, which emits native class field initializers that shadow prototype getters defined by legacy decorators. */
+    "useDefineForClassFields": false,                  /* Must be false when using experimentalDecorators  es2022+ default is true, which emits native class field initializers that shadow prototype getters defined by legacy decorators. */
 
     /* Modules */
     "module": "commonjs",

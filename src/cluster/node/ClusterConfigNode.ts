@@ -10,20 +10,20 @@ export enum ClusterRole {
 
 export interface ClusterConfigNodeConfig extends ConfigNodeConfig {
     instanceId:  string;
-    zkAddress:   string;
     zkRootPath:  string;
     natsAddress: string;
+    natsUser:    string;
+    natsPass:    string;
     role:        ClusterRole;
 }
 
 function toNodeStatus(status: ClusterClientStatus, error?: Error): NodeStatus {
     switch (status) {
-        case "connecting":       return { fill: "yellow", shape: "ring", text: "connecting..."    };
-        case "nats-connected":   return { fill: "yellow", shape: "ring", text: "ZK connecting..." };
-        case "connected":        return { fill: "green",  shape: "dot",  text: "connected"        };
-        case "zk-disconnected":  return { fill: "red",    shape: "ring", text: "ZK disconnected"  };
-        case "error":            return { fill: "red",    shape: "ring", text: error?.message ?? "error" };
-        default:                 return { fill: "grey",   shape: "ring", text: "idle"             };
+        case "connecting":    return { fill: "yellow", shape: "ring", text: "connecting..." };
+        case "connected":     return { fill: "green",  shape: "dot",  text: "connected"    };
+        case "disconnected":  return { fill: "red",    shape: "ring", text: "disconnected" };
+        case "error":         return { fill: "red",    shape: "ring", text: error?.message ?? "error" };
+        default:              return { fill: "grey",   shape: "ring", text: "idle"         };
     }
 }
 
@@ -38,9 +38,10 @@ function toNodeStatus(status: ClusterClientStatus, error?: Error): NodeStatus {
 export class ClusterConfigNode extends ConfigNode<ClusterConfigNodeConfig> {
 
     private _instanceId:  string;
-    private _zkAddress:   string;
     private _zkRootPath:  string;
     private _natsAddress: string;
+    private _natsUser:    string;
+    private _natsPass:    string;
     private _role:        ClusterRole;
 
     private _unsubscribeStatus: (() => void) | null = null;
@@ -49,16 +50,18 @@ export class ClusterConfigNode extends ConfigNode<ClusterConfigNodeConfig> {
         super(node, config);
 
         this._instanceId  = config.instanceId;
-        this._zkAddress   = config.zkAddress;
         this._zkRootPath  = config.zkRootPath  || "/nodered-cluster";
         this._natsAddress = config.natsAddress;
+        this._natsUser    = config.natsUser    || "";
+        this._natsPass    = config.natsPass    || "";
         this._role        = config.role        || ClusterRole.Member;
 
         const client = ClusterService.ensureClient(this.id(), {
             instanceId:  this._instanceId,
-            zkAddress:   this._zkAddress,
             zkRootPath:  this._zkRootPath,
             natsAddress: this._natsAddress,
+            natsUser:    this._natsUser    || undefined,
+            natsPass:    this._natsPass    || undefined,
             role:        this._role,
         });
 
@@ -75,7 +78,7 @@ export class ClusterConfigNode extends ConfigNode<ClusterConfigNodeConfig> {
             this._unsubscribeStatus = null;
 
             if (removed) {
-                // Node permanently deleted — tear down the cluster connection.
+                // Node permanently deleted  tear down the cluster connection.
                 ClusterService.removeClient(this.id());
             }
             done();
@@ -85,9 +88,10 @@ export class ClusterConfigNode extends ConfigNode<ClusterConfigNodeConfig> {
     // ── Accessors ────────────────────────────────────────────────────────────
 
     public instanceId():  string      { return this._instanceId;  }
-    public zkAddress():   string      { return this._zkAddress;   }
     public zkRootPath():  string      { return this._zkRootPath;  }
     public natsAddress(): string      { return this._natsAddress; }
+    public natsUser():    string      { return this._natsUser;    }
+    public natsPass():    string      { return this._natsPass;    }
     public role():        ClusterRole { return this._role;        }
 
     public isObserver(): boolean {

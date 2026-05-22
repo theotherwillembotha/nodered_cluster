@@ -2,7 +2,6 @@ import { Node, NodeStatus } from "node-red";
 import { BaseNode, BaseNodeConfig, NodeDescription, NodeManager, SourceUtility, onInput, Message } from "@theotherwillembotha/node-red-plugincore";
 import { ClusterConfigNode } from "./ClusterConfigNode";
 import { ClusterClient } from "../service/ClusterClient";
-import * as zookeeper from "node-zookeeper-client";
 
 export enum DeliveryMode {
     Durable   = "Durable",
@@ -16,7 +15,7 @@ export interface ClusterPublishNodeConfig extends BaseNodeConfig {
     ttl:           number;
 }
 
-const observerStatus:      NodeStatus = { fill: "grey",   shape: "ring", text: "observer — publish disabled" };
+const observerStatus:      NodeStatus = { fill: "grey",   shape: "ring", text: "observer  publish disabled" };
 const readyStatus:         NodeStatus = { fill: "green",  shape: "dot",  text: "ready"                       };
 const notConnectedStatus:  NodeStatus = { fill: "yellow", shape: "ring", text: "waiting for connection..."   };
 
@@ -108,34 +107,15 @@ export class ClusterPublishNode extends BaseNode<ClusterPublishNodeConfig> {
         }
     }
 
-    // ── ZK endpoint announcement ─────────────────────────────────────────────
-
-    private _endpointPath(client: ClusterClient): string {
-        const { zkRootPath, instanceId } = client.params();
-        return `${zkRootPath}/endpoints/${instanceId}/${this._subject}`;
-    }
+    // ── KV endpoint announcement ─────────────────────────────────────────────
 
     private _announceEndpoint(client: ClusterClient): void {
-        const zk   = client.zkClient();
-        if (!zk) return;
-
-        const path = this._endpointPath(client);
-        const data = Buffer.from(JSON.stringify({ mode: this._mode, ttl: this._ttl }));
-        const parentPath = path.substring(0, path.lastIndexOf("/"));
-
-        zk.mkdirp(parentPath, (mkErr) => {
-            if (mkErr) return;
-            zk.create(path, data, zookeeper.CreateMode.PERSISTENT, (createErr) => {
-                if (createErr && (createErr as zookeeper.Exception).getCode?.() === zookeeper.Exception.NODE_EXISTS) {
-                    zk.setData(path, data, -1, () => { /* best-effort update */ });
-                }
-            });
+        client.announceEndpoint(this._subject, this._mode, this._ttl).catch(err => {
+            this.node().warn(`ClusterPublish: failed to announce endpoint: ${err.message}`);
         });
     }
 
     private _removeEndpoint(client: ClusterClient): void {
-        const zk = client.zkClient();
-        if (!zk) return;
-        zk.remove(this._endpointPath(client), -1, () => { /* best-effort */ });
+        client.removeEndpoint(this._subject).catch(() => { /* best-effort */ });
     }
 }
