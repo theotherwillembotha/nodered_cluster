@@ -303,24 +303,24 @@ Use arrow keys to navigate, Enter or Tab to select. After selecting a suggestion
 
 ![Publish example](documentation/cluster_example_publish.png)
 
-An Inject node drives a periodic timestamp into a Cluster Publish node configured with Subject `sensors.heartbeat` in Durable mode. The message is stored in NATS JetStream under `nodered-cluster.field-a.sensors.heartbeat` and delivered to any subscriber that matches.
+An Inject node sends a payload on activation to the subject `test` in Durable mode. The message is stored in NATS JetStream under `<clustername>.<memberid>.test` and delivered to any subscriber that matches.
 
 ### Subscribing to sensor data
 
 ![Subscribe example](documentation/cluster_example_subscribe.png)
 
-A Cluster Subscribe node with pattern `*.sensors.heartbeat` receives heartbeat messages from all instances in the cluster. The subject pattern `*.sensors.heartbeat` expands to `nodered-cluster.*.sensors.heartbeat` at runtime  the `*` wildcard matches any single token, so messages from `field-a`, `field-b`, and any other instance are all delivered to this one node.
+A Cluster Subscribe node with pattern `*.test` receives all messages from all instances in the cluster that contains the subject `test`. The subject pattern `*.test` expands to `*.*.test.heartbeat` at runtime  the `*` wildcard matches any single token, so messages from `memberA`, `memberB`, and any other instance are all delivered to this one node.
 
 ---
 
 ## Subject routing reference
 
 ```
-Published as:   nodered-cluster . field-a . sensors . temperature
-                └── root path ──┘ └─ id ─┘ └─── subject ────────┘
+Published as:   nodered-cluster . memberA . test
+                └── root path ──┘ └─ id ─┘ └ subject ┘
 
-Subscribe with: nodered-cluster . *       . sensors . temperature   ← any instance
-                nodered-cluster . field-a . >                       ← all from field-a
+Subscribe with: nodered-cluster . *       . test   ← any instance
+                nodered-cluster . memberA . >                       ← all from memberA
                 nodered-cluster . >                                  ← everything
 ```
 
