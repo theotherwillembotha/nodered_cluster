@@ -190,7 +190,7 @@
                 _suggestions = buildSuggestions(data);
             },
             error: function() {
-                console.warn('[ClusterSubscribe] Discovery unavailable  autocomplete disabled');
+                console.warn('[ClusterSubscribe] Discovery unavailable - autocomplete disabled');
             }
         });
     }
@@ -228,7 +228,7 @@
 </script>
 
 <script type="text/markdown" template-section="onIncludeDocumentation">
-> **Early development**  this package is still in development. APIs and configuration may change.
+> **Early development** - this package is still in development. APIs and configuration may change.
 
 Subscribes to one or more cluster subjects and emits a Node-RED message each time a matching message arrives from any instance in the cluster.
 
@@ -239,7 +239,7 @@ Subscribes to one or more cluster subjects and emits a Node-RED message each tim
 
 ### Subject pattern syntax
 
-Patterns are scoped to the cluster's Root Path automatically  you only write the part after the root prefix.
+Patterns are scoped to the cluster's Root Path automatically - you only write the part after the root prefix.
 
 | Pattern | Matches |
 |---------|---------|
@@ -258,5 +258,5 @@ When the editor opens, the node fetches live discovery data from the cluster and
 ### Outputs
 
 : *msg.payload* : The payload published by the remote Cluster Publish node.
-: *msg.topic*   : The full NATS subject the message arrived on  use this to identify which instance sent the message.
+: *msg.topic*   : The full NATS subject the message arrived on - use this to identify which instance sent the message.
 </script>

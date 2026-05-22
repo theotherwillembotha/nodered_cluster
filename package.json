@@ -1,7 +1,7 @@
 {
   "name": "@theotherwillembotha/node-red-cluster",
   "version": "0.0.55",
-  "description": "Node-RED clustering plugin  connect multiple Node-RED instances into a coordinated cluster using NATS JetStream for message transport and NATS KV for shared state.",
+  "description": "Node-RED clustering plugin - connect multiple Node-RED instances into a coordinated cluster using NATS JetStream for message transport and NATS KV for shared state.",
   "main": "./build/index.js",
   "exports": "./build/index.js",
   "author": "Willem Botha (@theotherwillembotha)",

@@ -78,7 +78,7 @@ export class ClusterConfigNode extends ConfigNode<ClusterConfigNodeConfig> {
             this._unsubscribeStatus = null;
 
             if (removed) {
-                // Node permanently deleted  tear down the cluster connection.
+                // Node permanently deleted - tear down the cluster connection.
                 ClusterService.removeClient(this.id());
             }
             done();

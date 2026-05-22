@@ -75,7 +75,7 @@
     <div id="cluster-publish-observer-warning" style="display:none;" class="form-row">
         <div style="padding: 6px 8px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;">
             <i class="fa fa-exclamation-triangle"></i>
-            This node is <strong>disabled</strong>  the linked cluster config is set to <strong>Observer</strong> role. Publishing will be silently ignored at runtime.
+            This node is <strong>disabled</strong> - the linked cluster config is set to <strong>Observer</strong> role. Publishing will be silently ignored at runtime.
         </div>
     </div>
 
@@ -100,7 +100,7 @@
 </script>
 
 <script type="text/markdown" template-section="onIncludeDocumentation">
-> **Early development**  this package is still in development. APIs and configuration may change.
+> **Early development** - this package is still in development. APIs and configuration may change.
 
 Publishes a Node-RED message to the cluster. Any instance with a matching **Cluster Subscribe** pattern will receive it.
 
@@ -109,23 +109,23 @@ If the linked Cluster Config is set to **Observer** role, this node displays a w
 ### Properties
 
 : *cluster* (config) : The Cluster Config node that defines which cluster to publish to.
-: *subject* (string) : Subject identifier for this publisher  e.g. `commands.opengate` or `sensors.temperature`. Dot-notation is supported.
-: *mode*    (select) : **Durable**  persisted in JetStream; delivered even if the subscriber is offline. **Ephemeral**  discarded if not consumed within the TTL window; use for time-sensitive data.
+: *subject* (string) : Subject identifier for this publisher - e.g. `commands.opengate` or `sensors.temperature`. Dot-notation is supported.
+: *mode*    (select) : **Durable** - persisted in JetStream; delivered even if the subscriber is offline. **Ephemeral** - discarded if not consumed within the TTL window; use for time-sensitive data.
 : *TTL*     (number) : Ephemeral mode only. Seconds before an undelivered message is discarded. Default: 30.
 
 ### Subject routing
 
 The full NATS subject is composed automatically as `<rootPath>.<instanceId>.<subject>`.
 
-Example  Root Path `/nodered-cluster`, Instance ID `field-a`, Subject `commands.opengate`:
+Example - Root Path `/nodered-cluster`, Instance ID `field-a`, Subject `commands.opengate`:
 
 ```
 nodered-cluster.field-a.commands.opengate
 ```
 
 Subscribers use wildcards to match across instances:
-- `*.commands.opengate`  receives this subject from any instance
-- `field-a.>`  receives all subjects from `field-a`
+- `*.commands.opengate` - receives this subject from any instance
+- `field-a.>` - receives all subjects from `field-a`
 
 ### Input
 

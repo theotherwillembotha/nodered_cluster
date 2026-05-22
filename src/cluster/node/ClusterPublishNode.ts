@@ -15,7 +15,7 @@ export interface ClusterPublishNodeConfig extends BaseNodeConfig {
     ttl:           number;
 }
 
-const observerStatus:      NodeStatus = { fill: "grey",   shape: "ring", text: "observer  publish disabled" };
+const observerStatus:      NodeStatus = { fill: "grey",   shape: "ring", text: "observer - publish disabled" };
 const readyStatus:         NodeStatus = { fill: "green",  shape: "dot",  text: "ready"                       };
 const notConnectedStatus:  NodeStatus = { fill: "yellow", shape: "ring", text: "waiting for connection..."   };
 

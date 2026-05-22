@@ -1,6 +1,6 @@
 # @theotherwillembotha/node-red-cluster
 
-Connect multiple Node-RED instances into a coordinated cluster. Instances discover each other, publish messages on named subjects, and subscribe to messages from other instances  with full delivery guarantees even when nodes are temporarily offline. Built on [@theotherwillembotha/node-red-plugincore](https://github.com/theotherwillembotha/nodered_plugincore) and powered by [NATS JetStream](https://docs.nats.io/nats-concepts/jetstream).
+Connect multiple Node-RED instances into a coordinated cluster. Instances discover each other, publish messages on named subjects, and subscribe to messages from other instances - with full delivery guarantees even when nodes are temporarily offline. Built on [@theotherwillembotha/node-red-plugincore](https://github.com/theotherwillembotha/nodered_plugincore) and powered by [NATS JetStream](https://docs.nats.io/nats-concepts/jetstream).
 
 ---
 
@@ -11,11 +11,11 @@ Connect multiple Node-RED instances into a coordinated cluster. Instances discov
 >
 > **Two options:**
 > - Install [`@theotherwillembotha/node-red-plugincore`](https://flows.nodered.org/node/@theotherwillembotha/node-red-plugincore) via the palette manager or `npm install` **first**, then install this plugin.
-> - Install this plugin directly  then **restart Node-RED once** and both packages will be fully loaded.
+> - Install this plugin directly, then **restart Node-RED once** and both packages will be fully loaded.
 
 ---
 
-> **Early development**  this package is still in development. APIs and configuration may change between releases.
+> **Early development** - this package is still in development. APIs and configuration may change between releases.
 
 ---
 
@@ -23,11 +23,11 @@ Connect multiple Node-RED instances into a coordinated cluster. Instances discov
 
 Each Node-RED instance in the cluster connects to a NATS server. A **Cluster Publish** node sends a message onto a named subject; any other instance with a matching **Cluster Subscribe** node receives it. Subjects are automatically namespaced by instance, so you can subscribe to `field-a.sensors.temperature` for data from one specific instance, or `*.sensors.temperature` to receive it from all of them simultaneously.
 
-Messages published in **Durable** mode are stored in NATS JetStream. If a subscriber is offline when the message is sent, it will be delivered when the subscriber comes back  nothing is lost. **Ephemeral** mode is fire-and-forget with a configurable TTL, useful for time-sensitive data that becomes irrelevant if not consumed quickly.
+Messages published in **Durable** mode are stored in NATS JetStream. If a subscriber is offline when the message is sent, it will be delivered when the subscriber comes back - nothing is lost. **Ephemeral** mode is fire-and-forget with a configurable TTL, useful for time-sensitive data that becomes irrelevant if not consumed quickly.
 
 ---
 
-## NATS  what it is and why you need it
+## NATS - what it is and why you need it
 
 NATS is a lightweight, high-performance messaging server. Think of it as the backbone that all your Node-RED instances connect to: when one instance publishes a message, NATS routes it to all the instances that have subscribed to that subject.
 
@@ -41,9 +41,9 @@ JetStream is NATS's persistence layer. Without it, messages are delivered only i
 
 ## Setting up NATS
 
-### Option 1  Single server (simplest, good for getting started)
+### Option 1 - Single server (simplest, good for getting started)
 
-A single NATS server is the easiest way to get going. It has no redundancy  if NATS goes down, all cluster communication stops until it restarts  but it is perfectly adequate for development and non-critical deployments.
+A single NATS server is the easiest way to get going. It has no redundancy - if NATS goes down, all cluster communication stops until it restarts - but it is perfectly adequate for development and non-critical deployments.
 
 **`nats.conf`**
 ```
@@ -80,7 +80,7 @@ services:
     command: "-config /data/nats.conf"
     ports:
       - "4222:4222"   # client connections
-      - "8222:8222"   # monitoring dashboard  →  http://localhost:8222
+      - "8222:8222"   # monitoring dashboard → http://localhost:8222
     volumes:
       - ./nats:/data
 ```
@@ -94,9 +94,9 @@ In your **Cluster Config** node, set the NATS Address to `localhost:4222` and en
 
 ---
 
-### Option 2  Three-server cluster (high availability)
+### Option 2 - Three-server cluster (high availability)
 
-A clustered NATS setup runs multiple servers that synchronise with each other. If one server goes down, the others keep routing messages. Node-RED instances can connect to any server in the cluster  NATS handles the routing internally.
+A clustered NATS setup runs multiple servers that synchronise with each other. If one server goes down, the others keep routing messages. Node-RED instances can connect to any server in the cluster - NATS handles the routing internally.
 
 Each server needs its own config file. The only differences between them are the `server_name` and the `routes` list (each server points to the *other* two).
 
@@ -182,7 +182,7 @@ Start it:
 docker compose -f nats-compose.yml up -d
 ```
 
-Each server is reachable on a different host port (`4222`, `4223`, `4224`)  connect any Node-RED instance to whichever one is nearest or most reliable. The NATS cluster handles message routing between them transparently.
+Each server is reachable on a different host port (`4222`, `4223`, `4224`) - connect any Node-RED instance to whichever one is nearest or most reliable. The NATS cluster handles message routing between them transparently.
 
 > A ready-to-run three-server cluster configuration matching this layout is included in the `nats/` and `nats-compose.yml` files in this repository.
 
@@ -196,7 +196,7 @@ In your Node-RED user directory (typically `~/.node-red`):
 npm install @theotherwillembotha/node-red-cluster
 ```
 
-Or via the Node-RED **Manage Palette**  search for `node-red-cluster`.
+Or via the Node-RED **Manage Palette** - search for `node-red-cluster`.
 
 ---
 
@@ -213,13 +213,13 @@ A single Node-RED instance can participate in more than one cluster simultaneous
 | Property | Description |
 |----------|-------------|
 | **Name** | Display label for this config node. |
-| **Instance ID** | Unique name for this Node-RED instance within the cluster  e.g. `field-a` or `control-center`. Must be unique across all nodes sharing the same Root Path. |
-| **Role** | **Member**  full participation; can publish and subscribe. **Observer**  subscribe only; all Cluster Publish nodes linked to this config are silently disabled at runtime. |
+| **Instance ID** | Unique name for this Node-RED instance within the cluster - e.g. `field-a` or `control-center`. Must be unique across all nodes sharing the same Root Path. |
+| **Role** | **Member** - full participation; can publish and subscribe. **Observer** - subscribe only; all Cluster Publish nodes linked to this config are silently disabled at runtime. |
 | **NATS Address** | `host:port` of your NATS server or cluster entry point. Default: `localhost:4222`. |
-| **Root Path** | Path prefix that identifies this cluster  e.g. `/nodered-cluster`. All instances in the same cluster must use the same value. Multiple independent clusters can share a NATS server by using different Root Paths. |
+| **Root Path** | Path prefix that identifies this cluster - e.g. `/nodered-cluster`. All instances in the same cluster must use the same value. Multiple independent clusters can share a NATS server by using different Root Paths. |
 | **Username / Password** | NATS credentials. Leave blank for unauthenticated servers. |
 
-The **Test Connection** button verifies NATS connectivity using the address and credentials currently entered in the form  before saving.
+The **Test Connection** button verifies NATS connectivity using the address and credentials currently entered in the form - before saving.
 
 ---
 
@@ -232,8 +232,8 @@ Publishes the incoming Node-RED message to the cluster when triggered. Other ins
 | Property | Description |
 |----------|-------------|
 | **Cluster** | The Cluster Config node that defines which cluster to publish to. |
-| **Subject** | Subject identifier for this publisher  e.g. `commands.opengate` or `sensors.temperature`. Dot-notation is supported for hierarchy. |
-| **Mode** | **Durable**  message is persisted in JetStream and delivered even if the subscriber is offline at the time of publishing. **Ephemeral**  message is discarded if not consumed within the TTL window; use for data that becomes stale quickly. |
+| **Subject** | Subject identifier for this publisher - e.g. `commands.opengate` or `sensors.temperature`. Dot-notation is supported for hierarchy. |
+| **Mode** | **Durable** - message is persisted in JetStream and delivered even if the subscriber is offline at the time of publishing. **Ephemeral** - message is discarded if not consumed within the TTL window; use for data that becomes stale quickly. |
 | **TTL** | Ephemeral mode only. Seconds before an undelivered message is discarded. Default: 30. |
 
 The full NATS subject is composed automatically:
@@ -270,7 +270,7 @@ Subscribes to one or more cluster subjects and emits a Node-RED message each tim
 | Property | Description |
 |----------|-------------|
 | `msg.payload` | The payload published by the remote Cluster Publish node. |
-| `msg.topic` | The full NATS subject the message arrived on  useful for identifying which instance sent it. |
+| `msg.topic` | The full NATS subject the message arrived on - useful for identifying which instance sent it. |
 
 #### Subject pattern syntax
 
@@ -286,12 +286,12 @@ Patterns are scoped to the cluster's Root Path automatically. You only write the
 
 #### Live autocomplete
 
-When the editor panel opens, the Cluster Subscribe node fetches a live list of all currently connected instances and the subjects they are publishing. Start typing in the Subject Pattern field  the dropdown shows matching suggestions grouped by specificity:
+When the editor panel opens, the Cluster Subscribe node fetches a live list of all currently connected instances and the subjects they are publishing. Start typing in the Subject Pattern field - the dropdown shows matching suggestions grouped by specificity:
 
-- `>`  match everything
-- `*.subject`  any instance, specific subject
-- `instance-id.>`  all subjects from one instance
-- `instance-id.subject`  exact match
+- `>` - match everything
+- `*.subject` - any instance, specific subject
+- `instance-id.>` - all subjects from one instance
+- `instance-id.subject` - exact match
 
 Use arrow keys to navigate, Enter or Tab to select. After selecting a suggestion, type `, ` to add a second pattern.
 
@@ -309,7 +309,7 @@ An Inject node sends a payload on activation to the subject `test` in Durable mo
 
 ![Subscribe example](documentation/cluster_example_subscribe.png)
 
-A Cluster Subscribe node with pattern `*.test` receives all messages from all instances in the cluster that contains the subject `test`. The subject pattern `*.test` expands to `*.*.test.heartbeat` at runtime  the `*` wildcard matches any single token, so messages from `memberA`, `memberB`, and any other instance are all delivered to this one node.
+A Cluster Subscribe node with pattern `*.test` receives all messages from all instances in the cluster that contains the subject `test`. The subject pattern `*.test` expands to `*.*.test.heartbeat` at runtime - the `*` wildcard matches any single token, so messages from `memberA`, `memberB`, and any other instance are all delivered to this one node.
 
 ---
 

@@ -98,7 +98,7 @@ export class ClusterClient {
         return `${this.rootPrefix()}.${subjectPattern}`;
     }
 
-    /** Strip leading `/`, replace `/` with `.`  e.g. `/nodered-cluster` → `nodered-cluster` */
+    /** Strip leading `/`, replace `/` with `.` e.g. `/nodered-cluster` -> `nodered-cluster` */
     public rootPrefix(): string {
         return this._params.zkRootPath.replace(/^\//, "").replace(/\//g, ".");
     }
@@ -152,7 +152,7 @@ export class ClusterClient {
         await js.publish(subject, data);
     }
 
-    /** Publish via core NATS (ephemeral  fire and forget). */
+    /** Publish via core NATS (ephemeral - fire and forget). */
     public corePublish(subject: string, data: string): void {
         this._natsClient!.publish(subject, data);
     }

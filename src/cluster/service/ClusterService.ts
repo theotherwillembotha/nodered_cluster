@@ -16,7 +16,6 @@ export class ClusterService extends BaseService {
     // ── BaseService lifecycle ────────────────────────────────────────────────
 
     public async init(red: NodeAPI<NodeAPISettingsWithData>): Promise<void> {
-        console.log("STARTING: ClusterService");
 
         const writePermission = red.auth.needsPermission("inject.write");
 
@@ -27,7 +26,6 @@ export class ClusterService extends BaseService {
     }
 
     public deinit(_red: NodeAPI<NodeAPISettingsWithData>): void {
-        console.log("STOPPING: ClusterService");
         Object.values(ClusterService._clients).forEach(client => {
             client.stop().catch(err => console.error("ClusterService: error stopping client:", err));
         });
@@ -93,7 +91,7 @@ export class ClusterService extends BaseService {
             }
             res.json({ members });
         } catch (err: any) {
-            // No keys found is not an error  return empty list
+            // No keys found is not an error - return empty list
             res.json({ members: [] });
         }
     }
