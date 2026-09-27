@@ -1,6 +1,6 @@
 {
   "name": "@theotherwillembotha/node-red-cluster",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Node-RED clustering plugin - connect multiple Node-RED instances into a coordinated cluster using NATS JetStream for message transport and NATS KV for shared state.",
   "main": "./build/index.js",
   "exports": "./build/index.js",
@@ -46,7 +46,7 @@
     "@nats-io/kv": "^3.4.0",
     "@nats-io/nats-core": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
-    "@theotherwillembotha/node-red-plugincore": "^0.4.4"
+    "@theotherwillembotha/node-red-plugincore": "^0.4.5"
   },
   "devDependencies": {
     "@theotherwillembotha/node-red-plugincore": "../nodered_plugincore",
