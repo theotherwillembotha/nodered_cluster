@@ -1,9 +1,10 @@
 {
   "name": "@theotherwillembotha/node-red-cluster",
-  "version": "0.0.55",
+  "version": "0.4.4",
   "description": "Node-RED clustering plugin - connect multiple Node-RED instances into a coordinated cluster using NATS JetStream for message transport and NATS KV for shared state.",
   "main": "./build/index.js",
   "exports": "./build/index.js",
+  "types": "./build/index.d.ts",
   "author": "Willem Botha (@theotherwillembotha)",
   "license": "ISC",
   "keywords": [
@@ -16,9 +17,10 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npm run clean && tsc && npm run generate-nodes && npm run copy-files",
+    "build": "npm run clean && tsc && npm run generate-nodes && npm run bundle && npm run copy-files",
     "clean": "rm -rf ./build",
     "generate-nodes": "node build/GenerateNodes.js",
+    "bundle": "node esbuild.js",
     "copy-files": "cp -r ./icons ./build/"
   },
   "files": [
@@ -44,12 +46,13 @@
     "@nats-io/kv": "^3.4.0",
     "@nats-io/nats-core": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
-    "@theotherwillembotha/node-red-plugincore": "^0.0.55"
+    "@theotherwillembotha/node-red-plugincore": "^0.4.4"
   },
   "devDependencies": {
     "@theotherwillembotha/node-red-plugincore": "../nodered_plugincore",
     "@types/node": "^25.9.1",
-    "@types/node-red": "~1.3.5"
+    "@types/node-red": "~1.3.5",
+    "esbuild": "^0.25.0"
   },
   "publishConfig": {
     "access": "public"

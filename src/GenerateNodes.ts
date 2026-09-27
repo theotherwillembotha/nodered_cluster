@@ -1,4 +1,4 @@
-import { NodeGenerator } from "@theotherwillembotha/node-red-plugincore"
+import { NodeGenerator, NodeTypeService } from "@theotherwillembotha/node-red-plugincore"
 
 // services.
 import { ClusterService } from "./cluster/service/ClusterService";
@@ -10,6 +10,7 @@ import { ClusterSubscribeNode } from "./cluster/node/ClusterSubscribeNode";
 
 new NodeGenerator("./src/")
     // services.
+    .registerService(NodeTypeService)
     .registerService(ClusterService)
 
     // nodes
@@ -18,6 +19,6 @@ new NodeGenerator("./src/")
     .registerNode(ClusterSubscribeNode)
 
     // done.
-    .generate("./build/Nodes", "./build/Plugins");
+    .generate("./build/Nodes", "./build/Plugins", "@theotherwillembotha/node-red-cluster");
 
 process.exit(0);

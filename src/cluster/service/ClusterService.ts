@@ -1,13 +1,29 @@
-import { BaseService, ServiceDescriptor } from "@theotherwillembotha/node-red-plugincore";
+import { BaseService, ServiceDescription } from "@theotherwillembotha/node-red-plugincore";
 import { NodeAPI, NodeAPISettingsWithData } from "node-red";
 import { connect } from "@nats-io/transport-node";
 import { ClusterClient, ClusterClientParams } from "./ClusterClient";
 
 type TestResult = { ok: boolean; message?: string; error?: string };
 
+@ServiceDescription({
+    id:         "cluster/clusterservice",
+    name:       "ClusterService",
+    type:       "integration-plugin",
+    sourceFile: "./cluster/service/ClusterService",
+})
 export class ClusterService extends BaseService {
 
-    private static _clients: { [configId: string]: ClusterClient } = {};
+    // Backed by `global` - esbuild bundles this class separately into Nodes.js
+    // and Plugins.js, so a plain static field would give each bundle its own
+    // isolated (and mostly empty) copy. See PluginStarterGuide.md Section 17.
+    private static readonly _CLIENTS_KEY = '__nodered_cluster_clients__';
+
+    private static _clientsMap(): { [configId: string]: ClusterClient } {
+        if (!(global as any)[ClusterService._CLIENTS_KEY]) {
+            (global as any)[ClusterService._CLIENTS_KEY] = {};
+        }
+        return (global as any)[ClusterService._CLIENTS_KEY];
+    }
 
     constructor() {
         super("ClusterService");
@@ -26,19 +42,21 @@ export class ClusterService extends BaseService {
     }
 
     public deinit(_red: NodeAPI<NodeAPISettingsWithData>): void {
-        Object.values(ClusterService._clients).forEach(client => {
+        const clients = ClusterService._clientsMap();
+        Object.values(clients).forEach(client => {
             client.stop().catch(err => console.error("ClusterService: error stopping client:", err));
         });
-        ClusterService._clients = {};
+        for (const key of Object.keys(clients)) delete clients[key];
     }
 
     // ── Static client management ─────────────────────────────────────────────
 
     public static ensureClient(configId: string, params: ClusterClientParams): ClusterClient {
-        let client = ClusterService._clients[configId];
+        const clients = ClusterService._clientsMap();
+        let client = clients[configId];
         if (!client) {
             client = new ClusterClient(params);
-            ClusterService._clients[configId] = client;
+            clients[configId] = client;
             client.start().catch(err => {
                 console.error(`ClusterService: failed to start client for ${configId}:`, err);
             });
@@ -49,21 +67,22 @@ export class ClusterService extends BaseService {
     }
 
     public static getClient(configId: string): ClusterClient | null {
-        return ClusterService._clients[configId] ?? null;
+        return ClusterService._clientsMap()[configId] ?? null;
     }
 
     public static removeClient(configId: string): void {
-        const client = ClusterService._clients[configId];
+        const clients = ClusterService._clientsMap();
+        const client  = clients[configId];
         if (client) {
             client.stop().catch(err => console.error(`ClusterService: error stopping client ${configId}:`, err));
-            delete ClusterService._clients[configId];
+            delete clients[configId];
         }
     }
 
     // ── HTTP admin handlers ──────────────────────────────────────────────────
 
     private _handleStatus(req: any, res: any): void {
-        const client = ClusterService._clients[req.params.configId];
+        const client = ClusterService._clientsMap()[req.params.configId];
         if (!client) {
             res.status(404).json({ error: "No client for that config node" });
             return;
@@ -72,7 +91,7 @@ export class ClusterService extends BaseService {
     }
 
     private async _handleMembers(req: any, res: any): Promise<void> {
-        const client = ClusterService._clients[req.params.configId];
+        const client = ClusterService._clientsMap()[req.params.configId];
         if (!client) {
             res.status(404).json({ error: "No client for that config node" });
             return;
@@ -97,7 +116,7 @@ export class ClusterService extends BaseService {
     }
 
     private async _handleDiscovery(req: any, res: any): Promise<void> {
-        const client = ClusterService._clients[req.params.configId];
+        const client = ClusterService._clientsMap()[req.params.configId];
         if (!client) {
             res.status(404).json({ error: "No client for that config node" });
             return;
@@ -161,17 +180,5 @@ export class ClusterService extends BaseService {
         } catch (err: any) {
             return { ok: false, error: err.message || "Connection failed" };
         }
-    }
-
-    // ── ServiceDescriptor ────────────────────────────────────────────────────
-
-    static override getServiceDescriptor(): ServiceDescriptor {
-        return new ServiceDescriptor(
-            "@theotherwillembotha/clusterservice",
-            "ClusterService",
-            "integration-plugin",
-            "./cluster/service/ClusterService",
-            ClusterService
-        );
     }
 }

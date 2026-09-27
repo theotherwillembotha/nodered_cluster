@@ -4,21 +4,6 @@ Connect multiple Node-RED instances into a coordinated cluster. Instances discov
 
 ---
 
-> [!IMPORTANT]
-> **This plugin requires [`@theotherwillembotha/node-red-plugincore`](https://github.com/theotherwillembotha/nodered_plugincore) to be installed.**
->
-> `node-red-plugincore` is declared as a dependency and npm will install it automatically. However, due to a [known Node-RED limitation](https://github.com/node-red/node-red/issues/3529), packages that arrive as transitive npm dependencies are only discovered by the Node-RED runtime on the **next startup**.
->
-> **Two options:**
-> - Install [`@theotherwillembotha/node-red-plugincore`](https://flows.nodered.org/node/@theotherwillembotha/node-red-plugincore) via the palette manager or `npm install` **first**, then install this plugin.
-> - Install this plugin directly, then **restart Node-RED once** and both packages will be fully loaded.
-
----
-
-> **Early development** - this package is still in development. APIs and configuration may change between releases.
-
----
-
 ## What it does
 
 Each Node-RED instance in the cluster connects to a NATS server. A **Cluster Publish** node sends a message onto a named subject; any other instance with a matching **Cluster Subscribe** node receives it. Subjects are automatically namespaced by instance, so you can subscribe to `field-a.sensors.temperature` for data from one specific instance, or `*.sensors.temperature` to receive it from all of them simultaneously.

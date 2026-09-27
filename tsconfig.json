@@ -8,9 +8,12 @@
 
     /* Modules */
     "module": "commonjs",
+    "rootDir": "./src",
 
     /* Emit */
     "outDir": "./build",
+    "declaration": true,
+    "declarationMap": true,
 
     /* Interop Constraints */
     "esModuleInterop": true,
